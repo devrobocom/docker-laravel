@@ -1,8 +1,8 @@
 FROM php:7.2-apache
 
+ENV APACHE_DOCROOT="/var/www/public/"
 
 ENV XDEBUG="false"
-ENV APACHE_DOCUMENT_ROOT=/var/www/
 
 RUN apt-get update && \
     apt-get install -y --force-yes --no-install-recommends \
@@ -19,7 +19,8 @@ RUN apt-get update && \
         git \
         cron \
         nano \
-        libxml2-dev
+        libxml2-dev \
+        unzip
 
 # Install soap extention
 RUN docker-php-ext-install soap
@@ -93,8 +94,18 @@ RUN . ~/.bashrc
 # Laravel Schedule Cron Job:
 #####################################
 
-RUN echo "* * * * * root /usr/local/bin/php /var/www/artisan schedule:run >> /dev/null 2>&1"  >> /etc/cron.d/laravel-scheduler
+RUN echo "* * * * * root /usr/local/bin/php /var/www/html/artisan schedule:run >> /dev/null 2>&1"  >> /etc/cron.d/laravel-scheduler
 RUN chmod 0644 /etc/cron.d/laravel-scheduler
+
+######
+# Laravel installation 
+######
+
+RUN rm -rf /var/www/ && mkdir -p /var/www/
+WORKDIR /var/www/
+RUN composer global require laravel/installer
+RUN composer create-project --prefer-dist laravel/laravel .
+
 
 #
 #--------------------------------------------------------------------------
@@ -107,13 +118,15 @@ ADD ./laravel.ini /usr/local/etc/php/conf.d
 RUN rm -r /var/lib/apt/lists/*
 
 RUN usermod -u 1000 www-data
-
-WORKDIR /var/www
+RUN chown www-data /var/www/ -R
 
 COPY ./docker-entrypoint.sh /usr/local/bin/
+COPY ./apache-default /etc/apache2/sites-enabled/000-default.conf
+
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 RUN ln -s /usr/local/bin/docker-entrypoint.sh /
 ENTRYPOINT ["docker-entrypoint.sh"]
+
 
 EXPOSE 80
 CMD ["apache2-foreground"]
